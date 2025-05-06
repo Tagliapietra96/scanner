@@ -57,6 +57,5 @@ func CacheDir(dir string) (string, error) {
 
 // TempDir returns the OS temporary directory for the application
 func TempDir(dir string) string {
-	tmp := os.TempDir()
-	return filepath.Join(tmp, dir)
+	return filepath.Join(os.TempDir(), dir)
 }
