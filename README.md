@@ -1,3 +1,9 @@
+![GitHub release](https://img.shields.io/github/v/release/Tagliapietra96/scanner)
+![Build Status](https://github.com/Tagliapietra96/scanner/actions/workflows/go.yml/badge.svg)
+[![Go Reference](https://pkg.go.dev/badge/Tagliapietra96/scanner/path.svg)](https://pkg.go.dev/github.com/Tagliapietra96/scanner)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Tagliapietra96/scanner)](https://goreportcard.com/report/github.com/Tagliapietra96/scanner)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 # 🔍 Scanner - Blazing Fast Directory Traversal for Go! 🚀
 
 A high-performance, concurrent directory scanning package that will make your file system operations faster than a caffeinated squirrel on a sugar rush! 
@@ -253,7 +259,7 @@ Love this package? Here's how you can support its development:
 
 ## 📜 License
 
-This package is available under the [MIT License](https://opensource.org/licenses/MIT). Feel free to use it in your projects, modify it, and share the love! Just remember to include the original license text.
+This package is available under the [MIT License](https://github.com/Tagliapietra96/scanner/blob/main/LICENSE). Feel free to use it in your projects, modify it, and share the love! Just remember to include the original license text.
 
 Happy scanning! May your traversals be swift and your filters precise! 🎉
 
