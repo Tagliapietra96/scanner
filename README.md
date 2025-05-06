@@ -219,6 +219,10 @@ func main() {
 ### Platform-Specific Functions
 
 - **`IsHidden(path)`**: Cross-platform detection of hidden files/directories
+- **`ConfigDir(dir)`**: Returns platform-specific configuration directory (XDG_CONFIG_HOME on Unix, %AppData% on Windows)
+- **`DataDir(dir)`**: Returns platform-specific data directory (XDG_DATA_HOME on Unix, %LocalAppData% on Windows)
+- **`CacheDir(dir)`**: Returns platform-specific cache directory (XDG_CACHE_HOME on Unix, %LocalAppData%\Cache on Windows)
+- **`TempDir(dir)`**: Returns OS temporary directory for the application
 
 ## ⚙️ How it Works
 
