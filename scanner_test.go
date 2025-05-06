@@ -31,7 +31,7 @@ func BenchmarkFilepathWalk(b *testing.B) {
 	for b.Loop() {
 		var fileCount int
 
-		err := filepath.Walk("/Users", func(path string, info os.FileInfo, err error) error {
+		err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
@@ -52,7 +52,7 @@ func BenchmarkWalkDir(b *testing.B) {
 	for b.Loop() {
 		var fileCount int
 
-		err := filepath.WalkDir("/Users", func(path string, d os.DirEntry, err error) error {
+		err := filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -73,7 +73,7 @@ func BenchmarkScanSync(b *testing.B) {
 	for b.Loop() {
 		var fileCount int
 
-		r, err := scanner.ScanSync("/Users", -1, nil)
+		r, err := scanner.ScanSync(".", -1, nil)
 		fileCount = len(r)
 
 		if err != nil {
@@ -86,7 +86,7 @@ func BenchmarkScanSync(b *testing.B) {
 }
 
 func TestScan(t *testing.T) {
-	root := "/Users"
+	root := "."
 	r, err := scanner.ScanSync(root, -1, nil)
 	if err != nil {
 		t.Fatalf("Scanner failed: %v", err)
