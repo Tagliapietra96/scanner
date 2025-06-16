@@ -14,6 +14,7 @@ A high-performance, concurrent directory scanning package that will make your fi
 - [Features](#features)
 - [Installation](#installation)
 - [Usage Examples](#usage-examples)
+- [Callback Functions - The Heart of Flexibility](#callback-functions---the-heart-of-flexibility)
 - [APIs and Data Structures](#apis-and-data-structures)
 - [How it Works](#how-it-works)
 - [Use Cases](#use-cases)
@@ -22,7 +23,7 @@ A high-performance, concurrent directory scanning package that will make your fi
 
 ## 🌟 Introduction
 
-The `scanner` package provides a delightful way to traverse directory structures recursively with powerful filtering options. It leverages Go's concurrency model to scan directories significantly faster than standard library functions like `filepath.Walk` and `filepath.WalkDir`. 
+The `scanner` package provides a delightful way to traverse directory structures recursively with powerful callback-based filtering. It leverages Go's concurrency model to scan directories significantly faster than standard library functions like `filepath.Walk` and `filepath.WalkDir`. 
 
 Think of it as your personal file system explorer with superpowers - it's like having a tiny, efficient robot that zooms through your directories while you sip coffee! ☕
 
@@ -30,11 +31,10 @@ Think of it as your personal file system explorer with superpowers - it's like h
 
 - 🚄 **Blazing Fast Performance**: Concurrent design for maximum speed
 - 🔄 **Flexible API**: Both synchronous and asynchronous scanning options
-- 🧩 **Rich Filtering System**: Built-in filters for common use cases
-- 📏 **Configurable Depth**: Control how deep you want to go in the directory tree
-- 🔌 **Platform-Aware**: Special handling for hidden files on different operating systems
+- 🎯 **Powerful Callback System**: Sophisticated filtering and processing with callback functions
 - 💪 **Robust Error Handling**: Graceful recovery from permission errors and other issues
 - 🧠 **Smart Resource Management**: Optimized for CPU utilization
+- 🔌 **Cross-Platform**: Works seamlessly across different operating systems
 
 ## 📦 Installation
 
@@ -54,14 +54,14 @@ package main
 import (
     "fmt"
     "log"
+    "os"
     
     "github.com/Tagliapietra96/scanner"
 )
 
 func main() {
-    // Let's scan the current directory with no depth limit (-1 means scan everything)
-    // and no filters (nil means include everything)
-    results, err := scanner.ScanSync(".", -1, nil)
+    // Let's scan the current directory with no filtering (nil means include everything)
+    results, err := scanner.ScanSync(".", nil)
     
     // Always handle your errors, folks! Even the most perfect code can have a bad day.
     if err != nil {
@@ -84,13 +84,21 @@ package main
 import (
     "fmt"
     "log"
+    "os"
     
     "github.com/Tagliapietra96/scanner"
 )
 
 func main() {
-    // Let's find all directories (excluding files) within 2 levels of depth
-    directories, err := scanner.ScanSync("/path/to/scan", 2, scanner.FilterDir)
+    // Create a callback that only includes directories
+    dirFilter := func(path string, entry os.DirEntry) error {
+        if !entry.IsDir() {
+            return scanner.ErrDoNotInclude
+        }
+        return nil
+    }
+    
+    directories, err := scanner.ScanSync("/path/to/scan", dirFilter)
     
     if err != nil {
         log.Fatalf("Directory scan failed: %v", err)
@@ -103,7 +111,7 @@ func main() {
 }
 ```
 
-### Advanced Filtering Example
+### Advanced Filtering with Skip Logic
 
 ```go
 package main
@@ -112,40 +120,84 @@ import (
     "fmt"
     "log"
     "os"
+    "path/filepath"
+    "strings"
     
     "github.com/Tagliapietra96/scanner"
 )
 
 func main() {
-    // Create custom filter: find non-hidden Go files larger than 1KB
-    customFilter := func(path string, entry os.DirEntry) bool {
-        // Skip hidden files
-        if scanner.IsHidden(path) {
-            return false
+    // Create sophisticated filter: find Go files, skip hidden directories entirely
+    goFileFilter := func(path string, entry os.DirEntry) error {
+        // Skip hidden directories entirely (don't even traverse them)
+        if entry.IsDir() && strings.HasPrefix(entry.Name(), ".") {
+            return scanner.ErrSkip
         }
         
-        // Check if it's a Go file
-        extFilter := scanner.FilterByExtension(".go")
-        if !extFilter(path, entry) {
-            return false
+        // For files, only include Go files
+        if !entry.IsDir() {
+            if !strings.HasSuffix(entry.Name(), ".go") {
+                return scanner.ErrDoNotInclude
+            }
         }
         
-        // Check file size (greater than 1KB)
-        sizeFilter := scanner.FilterBySize(1024, ">")
-        return sizeFilter(path, entry)
+        return nil
     }
     
-    // Scan with our custom filter
-    goFiles, err := scanner.ScanSync("./src", -1, customFilter)
+    // Scan with our sophisticated filter
+    goFiles, err := scanner.ScanSync("./src", goFileFilter)
     
     if err != nil {
         log.Fatalf("Scan failed with error: %v", err)
     }
     
-    fmt.Printf("Found %d Go files larger than 1KB:\n", len(goFiles))
+    fmt.Printf("Found %d Go files (skipped hidden directories):\n", len(goFiles))
     for _, file := range goFiles {
         fmt.Println(file)
     }
+}
+```
+
+### Processing Files During Scan
+
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+    "os"
+    "path/filepath"
+    
+    "github.com/Tagliapietra96/scanner"
+)
+
+func main() {
+    var totalSize int64
+    var fileCount int
+    
+    // Callback that processes files and calculates statistics
+    statsCallback := func(path string, entry os.DirEntry) error {
+        if !entry.IsDir() {
+            info, err := entry.Info()
+            if err == nil {
+                totalSize += info.Size()
+                fileCount++
+            }
+        }
+        return nil
+    }
+    
+    // Scan and process files
+    _, err := scanner.ScanSync(".", statsCallback)
+    
+    if err != nil {
+        log.Fatalf("Scan failed: %v", err)
+    }
+    
+    fmt.Printf("Statistics:\n")
+    fmt.Printf("Files: %d\n", fileCount)
+    fmt.Printf("Total size: %d bytes\n", totalSize)
 }
 ```
 
@@ -157,6 +209,7 @@ package main
 import (
     "fmt"
     "os"
+    "strings"
     
     "github.com/Tagliapietra96/scanner"
 )
@@ -166,8 +219,20 @@ func main() {
     resultChan := make(chan string)
     errorChan := make(chan error)
     
+    // Filter for text files only
+    textFileFilter := func(path string, entry os.DirEntry) error {
+        if entry.IsDir() {
+            return nil // Include directories for traversal
+        }
+        if strings.HasSuffix(entry.Name(), ".txt") ||
+           strings.HasSuffix(entry.Name(), ".md") {
+            return nil // Include these files
+        }
+        return scanner.ErrDoNotInclude
+    }
+    
     // Start scanning asynchronously
-    scanner.Scan("/path/to/scan", -1, scanner.FilterFile, resultChan, errorChan)
+    scanner.Scan("/path/to/scan", textFileFilter, resultChan, errorChan)
     
     // Process results and errors as they come in
     fileCount := 0
@@ -178,7 +243,7 @@ func main() {
         case path, ok := <-resultChan:
             if !ok {
                 // Channel is closed, no more results
-                fmt.Printf("Scan complete! Found %d files.\n", fileCount)
+                fmt.Printf("Scan complete! Found %d text files.\n", fileCount)
                 return
             }
             fileCount++
@@ -195,61 +260,92 @@ func main() {
 }
 ```
 
+## 🎯 Callback Functions - The Heart of Flexibility
+
+The real power of the scanner package lies in its callback system! The callback function is your Swiss Army knife for directory traversal, offering incredible flexibility:
+
+### Callback Function Signature
+```go
+func(path string, entry os.DirEntry) error
+```
+
+### Return Values and Their Meanings
+
+- **`nil`**: Include this entry in results and continue traversal
+- **`scanner.ErrDoNotInclude`**: Exclude from results but continue traversal (useful for directories you want to explore but not include)
+- **`scanner.ErrSkip`**: Skip this entry entirely - if it's a directory, don't even traverse into it
+- **Any other error**: Abort the entire scan and return this error
+
+### Creative Uses for Callbacks
+
+#### 1. Smart Filtering with State
+```go
+var largeFiles []string
+callback := func(path string, entry os.DirEntry) error {
+    if !entry.IsDir() {
+        if info, err := entry.Info(); err == nil && info.Size() > 1048576 {
+            largeFiles = append(largeFiles, path)
+        }
+    }
+    return nil
+}
+```
+
+#### 2. Real-time Processing
+```go
+callback := func(path string, entry os.DirEntry) error {
+    if !entry.IsDir() {
+        // Process file immediately during scan
+        go processFile(path)
+    }
+    return nil
+}
+```
+
+#### 3. Conditional Directory Skipping
+```go
+callback := func(path string, entry os.DirEntry) error {
+    if entry.IsDir() && entry.Name() == "node_modules" {
+        return scanner.ErrSkip // Skip node_modules entirely
+    }
+    return nil
+}
+```
+
 ## 📚 APIs and Data Structures
 
 ### Core Functions
 
-- **`Scan(root string, maxDepth int, filter func, resultChan, errorChan)`**: Asynchronously scans directories
-- **`ScanSync(root string, maxDepth int, filter func) ([]string, error)`**: Synchronously scans directories
+- **`Scan(root string, callBack func(string, os.DirEntry) error, resultChan chan<- string, errorChan chan<- error)`**: Asynchronously scans directories with callback processing
+- **`ScanSync(root string, callBack func(string, os.DirEntry) error) ([]string, error)`**: Synchronously scans directories with callback processing
 
-### Filter Functions
+### Error Constants
 
-- **`FilterDir`**: Matches only directories
-- **`FilterFile`**: Matches only files (non-directories)
-- **`FilterHidden`**: Matches hidden files/directories
-- **`FilterRegular`**: Matches regular files
-- **`FilterSymlink`**: Matches symbolic links
-- **`FilterDevice`**: Matches device files
-- **`FilterNamedPipe`**: Matches named pipes
-- **`FilterSocket`**: Matches socket files
-- **`FilterCharDev`**: Matches character devices
-- **`FilterByExtension(ext)`**: Returns filter matching files with specified extension
-- **`FilterBySize(size, operator)`**: Returns filter matching files based on size comparisons
-
-### Platform-Specific Functions
-
-- **`IsHidden(path)`**: Cross-platform detection of hidden files/directories
-- **`ConfigDir(dir)`**: Returns platform-specific configuration directory (XDG_CONFIG_HOME on Unix, %AppData% on Windows)
-- **`DataDir(dir)`**: Returns platform-specific data directory (XDG_DATA_HOME on Unix, %LocalAppData% on Windows)
-- **`CacheDir(dir)`**: Returns platform-specific cache directory (XDG_CACHE_HOME on Unix, %LocalAppData%\Cache on Windows)
-- **`TempDir(dir)`**: Returns OS temporary directory for the application
+- **`ErrDoNotInclude`**: Returned by callbacks to exclude entries from results while continuing traversal
+- **`ErrSkip`**: Returned by callbacks to skip entries entirely (prevents directory traversal)
 
 ## ⚙️ How it Works
 
 The scanner package employs a beautifully orchestrated concurrent design to traverse directories efficiently:
 
-1. The `scan` function is the core workhorse that recursively traverses directories
-2. It uses goroutines for concurrent scanning, with a semaphore to limit concurrency
-3. Each directory entry is evaluated against filter functions
-4. Matching entries are sent to a result channel
-5. Errors encountered are sent to an error channel
-6. The function respects the specified maximum depth
+1. The `Scan` function creates a goroutine pool with intelligent concurrency limits
+2. Each directory is processed by a separate goroutine to maximize throughput
+3. Your callback function is called for every single entry, giving you complete control
+4. Results and errors flow through separate channels for clean separation of concerns
+5. The semaphore system prevents overwhelming the system while maximizing performance
 
-The package optimizes CPU utilization by limiting the number of concurrent operations based on the available CPU cores. This prevents overwhelming the system while maximizing throughput.
-
-Cross-platform support is achieved through build tags that provide platform-specific implementations for functions like `IsHidden`.
+The package optimizes CPU utilization by limiting the number of concurrent operations based on the available CPU cores (NumCPU - 2). This prevents overwhelming the system while maximizing throughput.
 
 ## 🎯 Use Cases
 
-- **Web Servers**: Quickly scan for static assets
-- **Build Tools**: Find source files for compilation
-- **Backup Systems**: Efficiently list files for backup
-- **Search Utilities**: Build fast file search applications
-- **Content Management**: Catalog media files
-- **DevOps Tools**: Find configuration files across directories
-- **Package Managers**: Scan for dependencies
-- **Data Analysis**: Process collections of data files
-- **Testing**: Scan for test files to execute
+- **Build Systems**: Find source files with complex filtering logic
+- **Code Analysis Tools**: Process files while scanning with custom logic
+- **Backup Systems**: Efficiently list files with size/date filtering
+- **Search Utilities**: Build lightning-fast file search with real-time processing
+- **Content Management**: Catalog media files with metadata extraction
+- **DevOps Tools**: Find configuration files while processing them
+- **Data Processing**: Stream-process large directory structures
+- **Testing Frameworks**: Discover and process test files dynamically
 
 ## 💝 Support the Project
 
@@ -265,5 +361,5 @@ Love this package? Here's how you can support its development:
 
 This package is available under the [MIT License](https://github.com/Tagliapietra96/scanner/blob/main/LICENSE). Feel free to use it in your projects, modify it, and share the love! Just remember to include the original license text.
 
-Happy scanning! May your traversals be swift and your filters precise! 🎉
+Happy scanning! May your traversals be swift and your callbacks powerful! 🎉
 
