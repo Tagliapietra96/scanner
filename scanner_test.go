@@ -73,7 +73,7 @@ func BenchmarkScanSync(b *testing.B) {
 	for b.Loop() {
 		var fileCount int
 
-		r, err := scanner.ScanSync(".", -1, nil)
+		r, err := scanner.ScanSync(".", nil)
 		fileCount = len(r)
 
 		if err != nil {
@@ -87,7 +87,7 @@ func BenchmarkScanSync(b *testing.B) {
 
 func TestScan(t *testing.T) {
 	root := "."
-	r, err := scanner.ScanSync(root, -1, nil)
+	r, err := scanner.ScanSync(root, nil)
 	if err != nil {
 		t.Fatalf("Scanner failed: %v", err)
 	}
